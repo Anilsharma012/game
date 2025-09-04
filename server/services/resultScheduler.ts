@@ -89,7 +89,10 @@ class ResultScheduler {
         return h * 60 + m;
       };
 
-      const currentM = now.getHours() * 60 + now.getMinutes();
+      // Convert current time to IST minutes to match configured times
+      const nowIST = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+      const currentM = nowIST.getHours() * 60 + nowIST.getMinutes();
+
       const startM = toMinutes(game.startTime);
       const endM = toMinutes(game.endTime);
       const resultM = toMinutes(game.resultTime);
