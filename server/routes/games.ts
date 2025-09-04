@@ -948,8 +948,11 @@ export const declareResult: RequestHandler = async (req, res) => {
       game.drawTime,
     );
 
-    if (!game.drawTime || !/^\d{1,2}:\d{2}$/.test(game.drawTime)) {
-      return res.status(400).json({ message: "Invalid or missing drawTime" });
+    // Gracefully handle missing drawTime by deriving from resultTime or endTime
+    let resolvedDrawTime = game.drawTime;
+    if (!resolvedDrawTime || !/^\d{1,2}:\d{2}$/.test(resolvedDrawTime)) {
+      resolvedDrawTime = game.resultTime || game.endTime;
+      console.log("ℹ️ drawTime missing/invalid; using:", resolvedDrawTime);
     }
 
     const today = resultDate ? new Date(resultDate) : new Date();
