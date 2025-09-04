@@ -37,8 +37,8 @@ class ResultScheduler {
    * Start the cron job scheduler
    */
   private startScheduler(): void {
-    // Run every hour at minute 0 (e.g., 12:00, 1:00, 2:00, etc.)
-    cron.schedule("0 * * * *", () => {
+    // Run every minute to capture exact result times
+    cron.schedule("*/1 * * * *", () => {
       this.checkAndDeclareResults();
     });
 
