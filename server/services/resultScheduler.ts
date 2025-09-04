@@ -37,8 +37,8 @@ class ResultScheduler {
    * Start the cron job scheduler
    */
   private startScheduler(): void {
-    // Run every hour at minute 0 (e.g., 12:00, 1:00, 2:00, etc.)
-    cron.schedule("0 * * * *", () => {
+    // Run every minute to capture exact result times
+    cron.schedule("*/1 * * * *", () => {
       this.checkAndDeclareResults();
     });
 
@@ -84,35 +84,37 @@ class ResultScheduler {
    */
   private shouldDeclareResultNow(game: any, now: Date): boolean {
     try {
-      // Get today's date and set the end time
-      const today = new Date();
-      const [hours, minutes] = game.endTime.split(":").map(Number);
+      const toMinutes = (t: string) => {
+        const [h, m] = t.split(":").map(Number);
+        return h * 60 + m;
+      };
 
-      // Create end time for today
-      const endTimeToday = new Date(today);
-      endTimeToday.setHours(hours, minutes, 0, 0);
+      // Convert current time to IST minutes to match configured times
+      const nowIST = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+      const currentM = nowIST.getHours() * 60 + nowIST.getMinutes();
 
-      // If current time is before end time today, the game hasn't ended yet
-      if (now < endTimeToday) {
-        return false;
+      const startM = toMinutes(game.startTime);
+      const endM = toMinutes(game.endTime);
+      const resultM = toMinutes(game.resultTime);
+
+      if (endM > startM) {
+        // same-day close
+        if (resultM >= endM) {
+          return currentM >= resultM;
+        } else {
+          // result next day after end
+          return currentM < startM && currentM >= resultM;
+        }
+      } else {
+        // cross-day close (end next day)
+        if (resultM > endM) {
+          // result same day as end
+          return currentM >= resultM && currentM < startM;
+        } else {
+          // result after midnight before next start
+          return currentM >= resultM && currentM < startM;
+        }
       }
-
-      // Calculate 24 hours after end time
-      const autoResultTime = new Date(
-        endTimeToday.getTime() + 24 * 60 * 60 * 1000,
-      );
-
-      // Check if we've passed the auto result time
-      const shouldDeclare = now >= autoResultTime;
-
-      if (shouldDeclare) {
-        console.log(`⏰ Game ${game.name} ready for auto result declaration`);
-        console.log(`   End time: ${endTimeToday.toISOString()}`);
-        console.log(`   Auto result time: ${autoResultTime.toISOString()}`);
-        console.log(`   Current time: ${now.toISOString()}`);
-      }
-
-      return shouldDeclare;
     } catch (error) {
       console.error(
         `❌ Error checking result timing for game ${game._id}:`,
