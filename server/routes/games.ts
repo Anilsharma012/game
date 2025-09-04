@@ -400,166 +400,167 @@ export const placeBet: RequestHandler = async (req, res) => {
 
       let placedBets = [];
 
-if (betType === "crossing") {
-  // ------- Helpers (₹↔︎paise) -------
-  const toPaise = (n: any) => Math.round(Number(n) * 100);
-  const toRupee = (p: number) => Number((p / 100).toFixed(2));
+      if (betType === "crossing") {
+        // ------- Helpers (₹↔︎paise) -------
+        const toPaise = (n: any) => Math.round(Number(n) * 100);
+        const toRupee = (p: number) => Number((p / 100).toFixed(2));
 
-  // ------- Inputs / flags -------
-  const baseDigits: string = (betNumber ?? betData?.crossingNumbers ?? "")
-    .toString()
-    .trim();
-  const isJodaCut: boolean = !!betData?.jodaCut;
+        // ------- Inputs / flags -------
+        const baseDigits: string = (betNumber ?? betData?.crossingNumbers ?? "")
+          .toString()
+          .trim();
+        const isJodaCut: boolean = !!betData?.jodaCut;
 
-  // amount mode (explicit > env > fallback)
-  const amountMode = (betData?.amountMode || (process.env.CROSSING_PER_COMBO?.toLowerCase() === "true" ? "perBet" : "perBet")) as
-    | "perBet"
-    | "total";
+        // amount mode (explicit > env > fallback)
+        const amountMode = (betData?.amountMode ||
+          (process.env.CROSSING_PER_COMBO?.toLowerCase() === "true"
+            ? "perBet"
+            : "perBet")) as "perBet" | "total";
 
-  // ------- Generate combos (server = SSoT) -------
-  let generatedCombos: string[] = getCrossingCombinations(baseDigits, isJodaCut) || [];
+        // ------- Generate combos (server = SSoT) -------
+        let generatedCombos: string[] =
+          getCrossingCombinations(baseDigits, isJodaCut) || [];
 
-  // ✅ Server-side guard: jodaCut=true ho to 11/22/33 hatado
-  if (isJodaCut) {
-    generatedCombos = generatedCombos.filter((n) => n?.length === 2 && n[0] !== n[1]);
-  }
+        // ✅ Server-side guard: jodaCut=true ho to 11/22/33 hatado
+        if (isJodaCut) {
+          generatedCombos = generatedCombos.filter(
+            (n) => n?.length === 2 && n[0] !== n[1],
+          );
+        }
 
-  const combosCount = generatedCombos.length;
-  if (!baseDigits || combosCount === 0) {
-    throw new Error("Invalid crossing input: no combinations generated.");
-  }
+        const combosCount = generatedCombos.length;
+        if (!baseDigits || combosCount === 0) {
+          throw new Error("Invalid crossing input: no combinations generated.");
+        }
 
-  // 1) FE ne per-combo bheja ho to use karo
-  let perComboPaiseFromClient: number | null = null;
-  if (
-    betData &&
-    typeof betData.crossingAmount !== "undefined" &&
-    !Number.isNaN(Number(betData.crossingAmount)) &&
-    Number(betData.crossingAmount) > 0
-  ) {
-    perComboPaiseFromClient = toPaise(betData.crossingAmount);
-  }
+        // 1) FE ne per-combo bheja ho to use karo
+        let perComboPaiseFromClient: number | null = null;
+        if (
+          betData &&
+          typeof betData.crossingAmount !== "undefined" &&
+          !Number.isNaN(Number(betData.crossingAmount)) &&
+          Number(betData.crossingAmount) > 0
+        ) {
+          perComboPaiseFromClient = toPaise(betData.crossingAmount);
+        }
 
-  // ------- Final amounts (paise me) -------
-  let amountsPaise: number[] = [];
-  let totalPaise = 0;
+        // ------- Final amounts (paise me) -------
+        let amountsPaise: number[] = [];
+        let totalPaise = 0;
 
-  if (perComboPaiseFromClient !== null) {
-    // FE ne per-combo diya
-    amountsPaise = Array(combosCount).fill(perComboPaiseFromClient);
-    totalPaise = perComboPaiseFromClient * combosCount;
-  } else if (amountMode === "perBet") {
-    // Incoming betAmount = per-combo
-    const perCombo = toPaise(betAmount);
-    amountsPaise = Array(combosCount).fill(perCombo);
-    totalPaise = perCombo * combosCount;
-  } else {
-    // amountMode === "total"  → incoming betAmount = TOTAL
-    totalPaise = toPaise(betAmount);
-    const base = Math.floor(totalPaise / combosCount);
-    let rem = totalPaise - base * combosCount;
-    amountsPaise = Array(combosCount).fill(base);
-    for (let i = 0; i < rem; i++) amountsPaise[i] += 1; // exact total match
-  }
+        if (perComboPaiseFromClient !== null) {
+          // FE ne per-combo diya
+          amountsPaise = Array(combosCount).fill(perComboPaiseFromClient);
+          totalPaise = perComboPaiseFromClient * combosCount;
+        } else if (amountMode === "perBet") {
+          // Incoming betAmount = per-combo
+          const perCombo = toPaise(betAmount);
+          amountsPaise = Array(combosCount).fill(perCombo);
+          totalPaise = perCombo * combosCount;
+        } else {
+          // amountMode === "total"  → incoming betAmount = TOTAL
+          totalPaise = toPaise(betAmount);
+          const base = Math.floor(totalPaise / combosCount);
+          let rem = totalPaise - base * combosCount;
+          amountsPaise = Array(combosCount).fill(base);
+          for (let i = 0; i < rem; i++) amountsPaise[i] += 1; // exact total match
+        }
 
-  const totalStake = toRupee(totalPaise);
+        const totalStake = toRupee(totalPaise);
 
-  console.log("🎯 CROSSING CALCULATION", {
-    userInput: betAmount,
-    amountMode,
-    perComboFromClient: betData?.crossingAmount ?? null,
-    baseDigits,
-    isJodaCut,
-    combosCount,
-    totalStake,
-    generatedCombos,
-  });
+        console.log("🎯 CROSSING CALCULATION", {
+          userInput: betAmount,
+          amountMode,
+          perComboFromClient: betData?.crossingAmount ?? null,
+          baseDigits,
+          isJodaCut,
+          combosCount,
+          totalStake,
+          generatedCombos,
+        });
 
-  // ✅ Re-check wallet for TOTAL stake (kyunki upar initial check per-bet pe tha)
-  if (wallet.depositBalance < totalStake) {
-    throw new Error(
-      `Insufficient wallet balance for total stake. Current: ₹${wallet.depositBalance}, Required: ₹${totalStake}`
-    );
-  }
+        // ✅ Re-check wallet for TOTAL stake (kyunki upar initial check per-bet pe tha)
+        if (wallet.depositBalance < totalStake) {
+          throw new Error(
+            `Insufficient wallet balance for total stake. Current: ₹${wallet.depositBalance}, Required: ₹${totalStake}`,
+          );
+        }
 
-  // ✅ Transaction amount ko totalStake pe update kar do (pehle create ho chuka hai)
-  if (transaction?.[0]?._id && totalStake !== betAmount) {
-    await Transaction.updateOne(
-      { _id: transaction[0]._id },
-      { $set: { amount: totalStake } },
-      { session }
-    );
-  }
+        // ✅ Transaction amount ko totalStake pe update kar do (pehle create ho chuka hai)
+        if (transaction?.[0]?._id && totalStake !== betAmount) {
+          await Transaction.updateOne(
+            { _id: transaction[0]._id },
+            { $set: { amount: totalStake } },
+            { session },
+          );
+        }
 
-  // ------- Create one bet per combo -------
-  const crossingBets = generatedCombos.map((combo, idx) => {
-    const stakeRupee = toRupee(amountsPaise[idx]);
-    return {
-      userId,
-      gameId,
-      gameName: game.name,
-      gameType: game.type,
-      betType,
-      betNumber: combo,
-      betAmount: stakeRupee,
-      potentialWinning: Number((stakeRupee * multiplier).toFixed(2)),
-      betData: {
-        ...betData,
-        amountMode,
-        originalInput: betNumber,
-        baseDigits,
-        jodaCut: isJodaCut,
-        combinations: generatedCombos,
-        combosCount,
-        totalStake,
-        userEmail,
-        ipAddress: req.ip,
-        userAgent: req.get("User-Agent"),
-      },
-      gameDate: new Date(),
-      gameTime: game.endTime,
-      status: "pending",
-      deductionTransactionId: transaction?.[0]?._id,
-    };
-  });
+        // ------- Create one bet per combo -------
+        const crossingBets = generatedCombos.map((combo, idx) => {
+          const stakeRupee = toRupee(amountsPaise[idx]);
+          return {
+            userId,
+            gameId,
+            gameName: game.name,
+            gameType: game.type,
+            betType,
+            betNumber: combo,
+            betAmount: stakeRupee,
+            potentialWinning: Number((stakeRupee * multiplier).toFixed(2)),
+            betData: {
+              ...betData,
+              amountMode,
+              originalInput: betNumber,
+              baseDigits,
+              jodaCut: isJodaCut,
+              combinations: generatedCombos,
+              combosCount,
+              totalStake,
+              userEmail,
+              ipAddress: req.ip,
+              userAgent: req.get("User-Agent"),
+            },
+            gameDate: new Date(),
+            gameTime: game.endTime,
+            status: "pending",
+            deductionTransactionId: transaction?.[0]?._id,
+          };
+        });
 
-  // Insert & set wallet deduction = exact total
-  const inserted = await Bet.insertMany(crossingBets, { session });
-  placedBets = inserted;
+        // Insert & set wallet deduction = exact total
+        const inserted = await Bet.insertMany(crossingBets, { session });
+        placedBets = inserted;
 
-  // ✅ ab se neeche wali code ko correct total se run karne ke liye
-  betAmount = totalStake; // wallet/transaction ke liye final total
-} 
-else {
-  // ---- non-crossing as-is ----
-  placedBets = await Bet.create(
-    [
-      {
-        userId,
-        gameId,
-        gameName: game.name,
-        gameType: game.type,
-        betType,
-        betNumber,
-        betAmount,
-        potentialWinning,
-        betData: {
-          ...betData,
-          userEmail,
-          ipAddress: req.ip,
-          userAgent: req.get("User-Agent"),
-        },
-        gameDate: new Date(),
-        gameTime: game.endTime,
-        status: "pending",
-        deductionTransactionId: transaction?.[0]?._id,
-      },
-    ],
-    { session }
-  );
-}
-
-
+        // ✅ ab se neeche wali code ko correct total se run karne ke liye
+        betAmount = totalStake; // wallet/transaction ke liye final total
+      } else {
+        // ---- non-crossing as-is ----
+        placedBets = await Bet.create(
+          [
+            {
+              userId,
+              gameId,
+              gameName: game.name,
+              gameType: game.type,
+              betType,
+              betNumber,
+              betAmount,
+              potentialWinning,
+              betData: {
+                ...betData,
+                userEmail,
+                ipAddress: req.ip,
+                userAgent: req.get("User-Agent"),
+              },
+              gameDate: new Date(),
+              gameTime: game.endTime,
+              status: "pending",
+              deductionTransactionId: transaction?.[0]?._id,
+            },
+          ],
+          { session },
+        );
+      }
 
       // Deduct amount from wallet atomically
       wallet.depositBalance -= betAmount;
@@ -965,7 +966,9 @@ export const declareResult: RequestHandler = async (req, res) => {
     });
 
     if (alreadyDeclared) {
-      console.log("ℹ️ Result already declared for today. Returning existing record.");
+      console.log(
+        "ℹ️ Result already declared for today. Returning existing record.",
+      );
       return res.status(200).json({
         message: "Result already declared for today",
         alreadyDeclared: true,
