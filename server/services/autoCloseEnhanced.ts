@@ -82,7 +82,8 @@ class AutoCloseEnhancedService {
                 currentStatus: 'open',
                 acceptingBets: true,
                 lastStatusChange: nowUTC
-              }
+              },
+              $unset: { forcedStatus: "" }
             });
             opened++;
           }
