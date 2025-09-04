@@ -965,7 +965,12 @@ export const declareResult: RequestHandler = async (req, res) => {
     });
 
     if (alreadyDeclared) {
-      return res.status(400).json({ message: "Result already declared" });
+      console.log("ℹ️ Result already declared for today. Returning existing record.");
+      return res.status(200).json({
+        message: "Result already declared for today",
+        alreadyDeclared: true,
+        data: alreadyDeclared,
+      });
     }
 
     const declaredResults = {
