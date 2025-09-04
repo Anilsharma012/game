@@ -1092,7 +1092,7 @@ export const declareResult: RequestHandler = async (req, res) => {
       gameId,
       gameName: game.name,
       gameType: game.type,
-      drawTime: game.drawTime,
+      drawTime: resolvedDrawTime,
       resultDate: today,
       jodiResult,
       harufResult,
